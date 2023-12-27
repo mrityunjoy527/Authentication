@@ -1,9 +1,8 @@
-require("dotenv").config();
 const express = require("express");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
-const encrypt = require("mongoose-encryption");
-const md5 = require("md5");
+const bcrypt = require("bcrypt");
+const saltRounds = 10;
 
 mongoose.connect("mongodb://127.0.0.1:27017/userDB");
 
@@ -29,14 +28,16 @@ app.route("/login")
 })
 .post(async function(req, res) {
     const username = req.body.username;
-    const password = md5(req.body.password);
+    const password = req.body.password;
     const data = await User.findOne({email: username});
     if(data) {
-        if(data.password === password) {
-            res.render("secrets");
-        }else {
-            res.redirect("/login");
-        }
+        bcrypt.compare(password, data.password, function(err, result) {
+            if(result === true) {
+                res.render("secrets");
+            }else {
+                res.redirect("/login");
+            }
+        });
     } else {
         res.redirect("/login");
     }
@@ -46,15 +47,17 @@ app.route("/register")
 .get(function(req, res) {
     res.render("register");
 })
-.post(async function(req, res) {
+.post(function(req, res) {
     const username = req.body.username;
-    const password = md5(req.body.password);
-    const user = new User({
-        email: username,
-        password: password,
+    const password = req.body.password;
+    bcrypt.hash(password, saltRounds, async function(err, hash) {
+        const user = new User({
+            email: username,
+            password: hash,
+        });
+        await user.save();
+        res.render("secrets");
     });
-    await user.save();
-    res.render("secrets");
 });
 
 app.listen(3000, function() {
